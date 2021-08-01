@@ -1,0 +1,226 @@
+---
+title: "Mapa interactivo"
+author: "Gorky Florez Castillo"
+date: "31/7/2021"
+output:  
+  flexdashboard::flex_dashboard:
+    theme: paper
+    source_code: embed
+---
+```{r setup, include=FALSE}
+# setting up R Markdown options
+
+# We want to hide the code and only see the results
+knitr::opts_chunk$set(echo = F)
+
+# We don't want to see any warnings from our code
+knitr::opts_chunk$set(warning = F)
+
+# We don't want to see any messages
+knitr::opts_chunk$set(message = F)
+
+```
+
+```{r install_packages}
+# You must have the flexdashboard package installed
+# Before knitting this R Markdown file
+# install.packages("flexdashboard")
+
+# This function checks if you don't have the correct packages installed yet
+# If not, it will install it for you
+packages <- c("tidyverse", "flexdashboard",
+              "crosstalk", "leaflet", "DT")
+
+if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
+  install.packages(setdiff(packages, rownames(installed.packages())), repos = "http://cran.us.r-project.org")  
+}
+library(tidyverse)
+library(flexdashboard)
+library(crosstalk)  
+library(leaflet)   
+library(DT)
+library(leaflet)
+library(dplyr)
+library(leaflet.extras)
+library(htmltools)
+library(htmlwidgets)
+library(crosstalk)
+library(rgdal)
+library(openxlsx)
+library(png)  
+library(broom)
+library(tidyverse)
+library(leaflet.providers)
+library(leafem)
+library(sp)
+library(sf)#Manejo de informacion espacial
+library(mapview)#Para visualizacion de datos espaciales
+library(RColorBrewer) #Paleta de Colores
+library(viridis)
+library(Rgb)
+library(ggplot2)#Para distintos graficos incluso mapas
+library(raster)#Para leer archivos raster
+library(rmarkdown)
+
+```
+
+```{r cargar_limpiar_datos}
+# Este ejemplo se centra en Luisiana
+# Vuelve a esto más tarde si quieres
+# para cambiar el estado que estamos visualizando
+# NOTA: Deberá cambiar el inicio
+# latitud y longitud del código del mapa a continuación
+data <- read.xlsx("Data excel/full_data.xlsx", sheet="Sheet1")  %>% 
+  filter(Lote=="LA") 
+
+st <- SharedData$new(data)
+```
+
+Mapa de plagas {data-icon="ion-stats-bars"}
+=====================================  
+
+Column {data-width=150}
+-------------------------------------
+
+### Filters
+
+```{r filter_section}
+filter_select(
+  id = "Lote_Sect",
+  label = "Lotes",
+  sharedData = st,
+  group = ~Lote_Sect
+)
+
+bscols(
+  filter_checkbox(
+    id = "Fecha_muestreo",
+    label = "Fechas",
+    sharedData = st,
+    group = ~Fecha_muestreo))
+
+bscols(
+  filter_slider(
+    id = "Porcentaje_Botrytis",
+    label = "Porcentaje de la plaga",
+    sharedData = st,
+    column = ~Porcentaje_Botrytis,
+    step = 10,
+    round = TRUE,
+    sep = "",
+    ticks = FALSE))
+```
+
+
+Column {data-width=500}
+-------------------------------------
+
+### Datatable
+
+```{r filterable_table}
+datatable(st)
+```
+
+### Interactive map
+
+```{r interactive_map}
+#Definiendo el Logo
+m="https://images.vexels.com/media/users/3/143561/isolated/preview/afa3aa927b63061e3b0222b7dab9cdbf-ubicaci--n-n--utica-norte-flecha-vintage-by-vexels.png"
+
+
+st %>% 
+  leaflet() %>%
+   addLogo(m,url = "https://images.vexels.com/media/users/3/143561/isolated/preview/afa3aa927b63061e3b0222b7dab9cdbf-ubicaci--n-n--utica-norte-flecha-vintage-by-vexels.png",
+          position = "topleft",
+          offset.x = 50,
+          offset.y = 10,
+          width = 100,
+          height = 100)%>%
+  addControl(html = "<p><strong><em>Mapa ataque de plagas en cultivos</em></strong></p>",
+             position = "topright")%>%
+  addDrawToolbar(targetGroup = "Graficos",
+                 editOptions = editToolbarOptions(selectedPathOptions = selectedPathOptions()))%>%
+  addMeasure(position = "topleft",
+             primaryLengthUnit = "meters",
+             primaryAreaUnit = "sqmeters",
+             activeColor = "#3D535D",
+             completedColor = "#7D4479")%>%
+  addLayersControl(baseGroups = c("Satellite", "OSM", "OTM", "ENGWM", "CDBP"),
+                   position = "topright",
+                   options = layersControlOptions(collapsed = T))%>%
+  addProviderTiles(providers$Esri.WorldImagery, group = "Satellite")%>%
+  addProviderTiles(providers$OpenStreetMap, group = "OSM")%>%
+  addProviderTiles(providers$OpenTopoMap, group = "OTM")%>%
+  addProviderTiles(providers$CartoDB.Positron, group = "CDBP") %>% 
+  addProviderTiles(providers$Esri.NatGeoWorldMap, group = "ENGWM")%>%
+  setView(-77.6850487, -10.716505, zoom = 13) %>% 
+  addCircles(popup = ~paste0("<strong>", data$Lote_Sect ,"</strong><br />",
+                    data$Fecha_muestreo, "<br />",
+                    data$Porcentaje_Botrytis),
+             radius = data$Porcentaje_Botrytis,
+             stroke=FALSE, 
+             opacity=.5)%>%
+  addScaleBar(position = "bottomright",options = scaleBarOptions(maxWidth = 100,
+                                                                 metric = TRUE,
+                                                                 imperial = TRUE,
+                                                                 updateWhenIdle = TRUE))%>%
+ addMiniMap(tiles = providers$Esri.WorldImagery,
+           toggleDisplay = TRUE)
+```
+
+
+Mapa especifico  {data-icon="ion-stats-bars"}
+=====================================  
+
+Row {data-width=150}
+-------------------------------------
+
+### mapa
+```{r interacti_map}
+#Definiendo el Logo
+m="https://images.vexels.com/media/users/3/143561/isolated/preview/afa3aa927b63061e3b0222b7dab9cdbf-ubicaci--n-n--utica-norte-flecha-vintage-by-vexels.png"
+
+
+st %>% 
+  leaflet() %>%
+   addLogo(m,url = "https://images.vexels.com/media/users/3/143561/isolated/preview/afa3aa927b63061e3b0222b7dab9cdbf-ubicaci--n-n--utica-norte-flecha-vintage-by-vexels.png",
+          position = "topleft",
+          offset.x = 50,
+          offset.y = 10,
+          width = 100,
+          height = 100)%>%
+  addControl(html = "<p><strong><em>Mapa ataque de plagas en cultivos</em></strong></p>",
+             position = "topright")%>%
+  addDrawToolbar(targetGroup = "Graficos",
+                 editOptions = editToolbarOptions(selectedPathOptions = selectedPathOptions()))%>%
+  addMeasure(position = "topleft",
+             primaryLengthUnit = "meters",
+             primaryAreaUnit = "sqmeters",
+             activeColor = "#3D535D",
+             completedColor = "#7D4479")%>%
+  addLayersControl(baseGroups = c("Satellite", "OSM", "OTM", "ENGWM", "CDBP"),
+                   position = "topright",
+                   options = layersControlOptions(collapsed = T))%>%
+  addProviderTiles(providers$Esri.WorldImagery, group = "Satellite")%>%
+  addProviderTiles(providers$OpenStreetMap, group = "OSM")%>%
+  addProviderTiles(providers$OpenTopoMap, group = "OTM")%>%
+  addProviderTiles(providers$CartoDB.Positron, group = "CDBP") %>% 
+  addProviderTiles(providers$Esri.NatGeoWorldMap, group = "ENGWM")%>%
+  setView(-77.6850487, -10.716505, zoom = 13) %>% 
+  addCircles(popup = ~paste0("<strong>", data$Lote_Sect ,"</strong><br />",
+                    data$Fecha_muestreo, "<br />",
+                    data$Porcentaje_Botrytis),
+             radius = data$Porcentaje_Botrytis,
+             stroke=FALSE, 
+             opacity=.5)%>%
+  addScaleBar(position = "bottomright",options = scaleBarOptions(maxWidth = 100,
+                                                                 metric = TRUE,
+                                                                 imperial = TRUE,
+                                                                 updateWhenIdle = TRUE))%>%
+ addMiniMap(tiles = providers$Esri.WorldImagery,
+           toggleDisplay = TRUE)
+```
+
+
+
+
